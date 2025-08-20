@@ -4,7 +4,7 @@
 # ========================================
 # Stage 1: Base CUDA Runtime Environment  
 # ========================================
-FROM nvidia/cuda:12.1-runtime-ubuntu22.04 AS base
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS base
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
@@ -48,7 +48,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Install ONNX Runtime GPU with CUDA 12.1 support
+# Install ONNX Runtime GPU with CUDA 12.4 support
 RUN pip install --no-cache-dir onnxruntime-gpu==1.16.3 \
     --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
 
@@ -113,7 +113,7 @@ CMD ["python", "/app/src/handler.py"]
 LABEL maintainer="BGProjects"
 LABEL description="DeepFilterNet3 Serverless Audio Enhancement - RTX 4090 Optimized"
 LABEL version="1.0.0"
-LABEL cuda_version="12.1"
+LABEL cuda_version="12.4"
 LABEL onnxruntime_version="1.16.3"
 LABEL python_version="3.10"
 
