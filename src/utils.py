@@ -54,19 +54,37 @@ def validate_input(job_input: Dict[str, Any]) -> Optional[str]:
         Error message if validation fails, None if valid
     """
     
-    # Check required fields
-    if not isinstance(job_input.get('audio_base64'), str):
-        return "Field 'audio_base64' must be a base64 encoded string"
+    # Check required fields - must have either audio_base64 or audio_url
+    audio_base64 = job_input.get('audio_base64')
+    audio_url = job_input.get('audio_url')
     
-    # Validate base64 encoding
-    try:
-        audio_data = base64.b64decode(job_input['audio_base64'])
-        if len(audio_data) == 0:
-            return "Empty audio data"
-        if len(audio_data) > 500 * 1024 * 1024:  # 500MB limit
-            return "Audio data too large (max 500MB)"
-    except Exception as e:
-        return f"Invalid base64 audio data: {str(e)}"
+    if not audio_base64 and not audio_url:
+        return "Must provide either 'audio_base64' or 'audio_url'"
+    
+    if audio_base64 and audio_url:
+        return "Cannot provide both 'audio_base64' and 'audio_url' - choose one"
+    
+    # Validate base64 encoding if provided
+    if audio_base64:
+        if not isinstance(audio_base64, str):
+            return "Field 'audio_base64' must be a base64 encoded string"
+        
+        try:
+            audio_data = base64.b64decode(audio_base64)
+            if len(audio_data) == 0:
+                return "Empty audio data"
+            if len(audio_data) > 500 * 1024 * 1024:  # 500MB limit
+                return "Audio data too large (max 500MB)"
+        except Exception as e:
+            return f"Invalid base64 audio data: {str(e)}"
+    
+    # Validate URL if provided
+    if audio_url:
+        if not isinstance(audio_url, str):
+            return "Field 'audio_url' must be a string"
+        
+        if not (audio_url.startswith('http://') or audio_url.startswith('https://')):
+            return "audio_url must be a valid HTTP/HTTPS URL"
     
     # Validate optional parameters
     sample_rate = job_input.get('sample_rate')

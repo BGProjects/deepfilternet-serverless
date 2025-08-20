@@ -92,9 +92,10 @@ ENV ORT_TENSORRT_FP16_ENABLE=1
 ENV ORT_TENSORRT_ENGINE_CACHE_ENABLE=1
 ENV ORT_TENSORRT_ENGINE_CACHE_PATH=/tmp/trt_cache
 
-# Memory optimizations
-ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
-ENV CUDA_MEMORY_FRACTION=0.9
+# Memory optimizations - Conservative settings for RTX 4090
+ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512,expandable_segments:True
+ENV CUDA_MEMORY_FRACTION=0.7
+ENV GPU_MEMORY_UTILIZATION=0.7
 
 # Logging configuration
 ENV LOG_LEVEL=INFO

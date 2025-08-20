@@ -1,0 +1,11 @@
+{
+  "input": {
+    "audio_base64": "",
+    "audio_url": "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars60.wav",
+    "sample_rate": 48000,
+    "output_format": "wav",
+    "return_metadata": true,
+    "attenuation_limit_db": -20
+  },
+  "id": "local_test"
+}

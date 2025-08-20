@@ -1,0 +1,52 @@
+# RunPod deployment ignore file
+# Similar to .dockerignore but for RunPod specific files
+
+# Development files
+test_input.json
+*.log
+logs/
+temp/
+
+# Documentation
+README.md
+MODELS.md
+docs/
+
+# Testing
+tests/
+test_*.py
+*_test.py
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Git files
+.git/
+.gitignore
+.gitattributes
+
+# Virtual environments
+venv/
+env/
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/

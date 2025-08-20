@@ -55,16 +55,20 @@ class ONNXInferenceEngine:
             # Check available providers
             available_providers = ort.get_available_providers()
             
-            # RTX 4090 optimized provider configuration
-            if 'TensorrtExecutionProvider' in available_providers and self.optimize_for_rtx4090:
-                providers.append(('TensorrtExecutionProvider', {
-                    'trt_max_workspace_size': 8 * 1024 * 1024 * 1024,  # 8GB
-                    'trt_fp16_enable': True,
-                    'trt_int8_enable': False,  # Keep quality
-                    'trt_engine_cache_enable': True,
-                    'trt_engine_cache_path': '/tmp/trt_cache'
-                }))
-                logger.info("🚀 TensorRT provider enabled for RTX 4090")
+            # RTX 4090 optimized provider configuration (disabled by default for stability)
+            if 'TensorrtExecutionProvider' in available_providers and self.optimize_for_rtx4090 and os.getenv('ENABLE_TENSORRT', 'false').lower() == 'true':
+                try:
+                    providers.append(('TensorrtExecutionProvider', {
+                        'trt_max_workspace_size': 4 * 1024 * 1024 * 1024,  # Reduced to 4GB for stability
+                        'trt_fp16_enable': True,
+                        'trt_int8_enable': False,  # Keep quality
+                        'trt_engine_cache_enable': True,
+                        'trt_engine_cache_path': '/tmp/trt_cache'
+                    }))
+                    logger.info("🚀 TensorRT provider enabled for RTX 4090")
+                except Exception as e:
+                    logger.warning(f"⚠️ TensorRT provider failed to initialize: {e}")
+                    logger.info("🔄 Falling back to CUDA provider")
             
             if 'CUDAExecutionProvider' in available_providers:
                 cuda_options = {
@@ -77,10 +81,10 @@ class ONNXInferenceEngine:
                 # RTX 4090 specific optimizations
                 if self.optimize_for_rtx4090:
                     cuda_options.update({
-                        'gpu_mem_limit': 20 * 1024 * 1024 * 1024,  # 20GB for RTX 4090
-                        'arena_extend_strategy': 'kSameAsRequested',
+                        'gpu_mem_limit': 16 * 1024 * 1024 * 1024,  # Reduced to 16GB for stability
+                        'arena_extend_strategy': 'kNextPowerOfTwo',  # More conservative
                         'cudnn_conv1d_pad_to_nc1d': True,  # Audio processing optimization
-                        'enable_cuda_graph': True,  # RTX 40-series feature
+                        'enable_cuda_graph': False,  # Disabled for compatibility
                     })
                 
                 providers.append(('CUDAExecutionProvider', cuda_options))
