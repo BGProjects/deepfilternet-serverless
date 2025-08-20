@@ -66,7 +66,7 @@ COPY scripts/ /app/scripts/
 COPY models/ /app/models/
 
 # Download ONNX models
-RUN python /app/scripts/download_models.py
+# RUN python /app/scripts/download_models.py
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/temp /tmp/trt_cache
