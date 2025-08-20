@@ -44,13 +44,19 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies with optimizations
+# Install PyTorch nightly with RTX 5090 (sm_120) support first
+RUN pip install --no-cache-dir --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+
+# Install Python dependencies with optimizations  
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Install ONNX Runtime GPU with CUDA 12.4 support
-RUN pip install --no-cache-dir onnxruntime-gpu==1.16.3 \
+# Install ONNX Runtime GPU with CUDA 12.4 support (updated version)
+RUN pip install --no-cache-dir onnxruntime-gpu==1.18.1 \
     --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+
+# Preload CUDA libraries for ONNX Runtime compatibility
+RUN python -c "import torch; import onnxruntime; onnxruntime.preload_dlls() if hasattr(onnxruntime, 'preload_dlls') else None"
 
 # Verify ONNX Runtime installation
 RUN python -c "import onnxruntime as ort; print('ONNX Runtime version:', ort.__version__); print('Available providers:', ort.get_available_providers())"
@@ -112,14 +118,17 @@ CMD ["python", "/app/src/handler.py"]
 # Build Information
 # ========================================
 LABEL maintainer="BGProjects"
-LABEL description="DeepFilterNet3 Serverless Audio Enhancement - RTX 4090 Optimized"
-LABEL version="1.0.0"
+LABEL description="DeepFilterNet3 Serverless Audio Enhancement - RTX 5090 Optimized with CUDA 12.8"
+LABEL version="2.0.0"
 LABEL cuda_version="12.4"
-LABEL onnxruntime_version="1.16.3"
+LABEL onnxruntime_version="1.18.1"
+LABEL pytorch_version="2.8.0-nightly"
 LABEL python_version="3.10"
 
 # Document exposed functionality
 LABEL runpod.serverless=true
-LABEL runpod.gpu="RTX4090"
-LABEL runpod.memory_requirement="8GB"
+LABEL runpod.gpu="RTX5090"
+LABEL runpod.gpu_compatibility="RTX4090,RTX5080,RTX5090"
+LABEL runpod.memory_requirement="16GB"
 LABEL runpod.processing_type="audio_enhancement"
+LABEL runpod.cuda_capability="sm_90,sm_120"

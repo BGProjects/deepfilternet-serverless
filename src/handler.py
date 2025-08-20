@@ -19,6 +19,15 @@ import numpy as np
 import soundfile as sf
 from loguru import logger
 
+# Import PyTorch first to ensure CUDA libraries are loaded for ONNX Runtime
+try:
+    import onnxruntime
+    if hasattr(onnxruntime, 'preload_dlls'):
+        onnxruntime.preload_dlls()
+    logger.info("ONNX Runtime CUDA libraries preloaded")
+except Exception as e:
+    logger.warning(f"Could not preload ONNX Runtime libraries: {e}")
+
 # Import our custom modules
 from audio_processor import DeepFilterNetProcessor
 from utils import setup_logging, validate_input, handle_error

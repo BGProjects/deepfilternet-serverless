@@ -44,7 +44,20 @@ class ONNXInferenceEngine:
         self.sessions = self._load_models()
         
         logger.info(f"🧠 ONNX inference engine ready")
-        logger.info(f"🎮 Providers: {[p.split('ExecutionProvider')[0] for p in self.providers]}")
+        
+        # Safe provider name extraction handling both string and tuple formats
+        provider_names = []
+        for p in self.providers:
+            if isinstance(p, tuple):
+                # Handle tuple format: ('CUDAExecutionProvider', {...})
+                provider_names.append(p[0].replace('ExecutionProvider', ''))
+            elif isinstance(p, str):
+                # Handle string format: 'CUDAExecutionProvider'
+                provider_names.append(p.replace('ExecutionProvider', ''))
+            else:
+                provider_names.append(str(p))
+        
+        logger.info(f"🎮 Providers: {provider_names}")
     
     def _setup_providers(self) -> List[str]:
         """Setup ONNX execution providers with priority order"""
