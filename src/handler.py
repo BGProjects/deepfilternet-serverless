@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""
+DeepFilterNet3 Serverless Handler for RunPod
+Optimized for RTX 4090 GPU deployment
+"""
+
+import os
+import sys
+import time
+import base64
+import tempfile
+from typing import Dict, Any, Optional
+import traceback
+
+import runpod
+import torch
+import numpy as np
+import soundfile as sf
+from loguru import logger
+
+# Import our custom modules
+from audio_processor import DeepFilterNetProcessor
+from utils import setup_logging, validate_input, handle_error
+
+# Global processor instance (loaded once per container)
+processor: Optional[DeepFilterNetProcessor] = None
+
+
+def load_processor():
+    """Load the DeepFilterNet processor (called once per container)"""
+    global processor
+    
+    if processor is None:
+        logger.info("Loading DeepFilterNet3 processor...")
+        start_time = time.time()
+        
+        try:
+            # Use normal model by default, LL model available but not used
+            model_path = "/app/models/normal"
+            processor = DeepFilterNetProcessor(
+                model_path=model_path,
+                use_gpu=True,
+                optimize_for_rtx4090=True
+            )
+            
+            load_time = time.time() - start_time
+            logger.info(f"✅ Processor loaded successfully in {load_time:.2f}s")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to load processor: {e}")
+            raise
+    
+    return processor
+
+
+def handler(job: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    RunPod serverless handler function
+    
+    Expected input format:
+    {
+        "input": {
+            "audio_base64": "base64_encoded_wav_data",  # Required
+            "sample_rate": 48000,                       # Optional, default: 48000
+            "output_format": "wav",                     # Optional, default: "wav"
+            "attenuation_limit_db": null,               # Optional noise attenuation limit
+            "return_metadata": true                     # Optional, return processing stats
+        }
+    }
+    
+    Returns:
+    {
+        "enhanced_audio_base64": "base64_encoded_enhanced_audio",
+        "metadata": {
+            "processing_time_ms": 1234,
+            "input_duration_s": 60.0,
+            "rtf": 0.025,
+            "model_used": "DeepFilterNet3",
+            "gpu_used": "RTX 4090"
+        }
+    }
+    """
+    
+    job_start_time = time.time()
+    
+    try:
+        # Extract input data
+        job_input = job.get('input', {})
+        
+        # Validate required inputs
+        if not job_input.get('audio_base64'):
+            return handle_error("Missing required field: audio_base64")
+        
+        # Validate input format
+        validation_error = validate_input(job_input)
+        if validation_error:
+            return handle_error(validation_error)
+        
+        # Load processor (cached after first call)
+        proc = load_processor()
+        
+        # Process the audio
+        logger.info("🎵 Starting audio enhancement...")
+        processing_start = time.time()
+        
+        # Decode base64 audio
+        audio_data = base64.b64decode(job_input['audio_base64'])
+        
+        # Create temporary file for audio processing
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_input:
+            tmp_input.write(audio_data)
+            tmp_input_path = tmp_input.name
+        
+        try:
+            # Load and process audio
+            enhanced_audio, metadata = proc.enhance_audio_file(
+                input_path=tmp_input_path,
+                sample_rate=job_input.get('sample_rate', 48000),
+                attenuation_limit_db=job_input.get('attenuation_limit_db')
+            )
+            
+            # Save enhanced audio to temporary file
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_output:
+                sf.write(tmp_output.name, enhanced_audio, metadata['sample_rate'])
+                
+                # Read back and encode as base64
+                with open(tmp_output.name, 'rb') as f:
+                    enhanced_audio_data = f.read()
+                    enhanced_audio_base64 = base64.b64encode(enhanced_audio_data).decode('utf-8')
+                
+                # Clean up temp files
+                os.unlink(tmp_output.name)
+            
+        finally:
+            # Clean up input temp file
+            os.unlink(tmp_input_path)
+        
+        processing_time = time.time() - processing_start
+        total_time = time.time() - job_start_time
+        
+        # Prepare response
+        response = {
+            "enhanced_audio_base64": enhanced_audio_base64,
+            "success": True
+        }
+        
+        # Add metadata if requested
+        if job_input.get('return_metadata', True):
+            response["metadata"] = {
+                **metadata,
+                "processing_time_ms": round(processing_time * 1000, 2),
+                "total_time_ms": round(total_time * 1000, 2),
+                "model_used": "DeepFilterNet3",
+                "gpu_used": torch.cuda.get_device_name() if torch.cuda.is_available() else "CPU",
+                "cuda_memory_used_mb": round(torch.cuda.memory_allocated() / 1024 / 1024, 2) if torch.cuda.is_available() else 0
+            }
+        
+        logger.info(f"✅ Audio enhanced successfully in {processing_time:.2f}s")
+        return response
+        
+    except Exception as e:
+        logger.error(f"❌ Handler error: {e}")
+        logger.error(traceback.format_exc())
+        return handle_error(f"Processing failed: {str(e)}")
+
+
+def main():
+    """Main function to start the serverless worker"""
+    
+    # Setup logging
+    setup_logging()
+    
+    logger.info("🚀 Starting DeepFilterNet3 Serverless Worker")
+    logger.info(f"🐍 Python version: {sys.version}")
+    logger.info(f"🔥 PyTorch version: {torch.__version__}")
+    logger.info(f"🎮 CUDA available: {torch.cuda.is_available()}")
+    
+    if torch.cuda.is_available():
+        logger.info(f"🎮 GPU: {torch.cuda.get_device_name()}")
+        logger.info(f"🎮 GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+    
+    # Warm up the processor (optional - improves first request performance)
+    try:
+        logger.info("🔥 Warming up processor...")
+        warmup_start = time.time()
+        load_processor()
+        warmup_time = time.time() - warmup_start
+        logger.info(f"🔥 Warmup completed in {warmup_time:.2f}s")
+    except Exception as e:
+        logger.error(f"❌ Warmup failed: {e}")
+        sys.exit(1)
+    
+    # Start the RunPod serverless worker
+    logger.info("🎯 Worker ready - waiting for requests...")
+    runpod.serverless.start({"handler": handler})
+
+
+if __name__ == "__main__":
+    main()
