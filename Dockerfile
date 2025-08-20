@@ -62,11 +62,7 @@ FROM dependencies AS application
 
 # Copy application source code
 COPY src/ /app/src/
-COPY scripts/ /app/scripts/
 COPY models/ /app/models/
-
-# Download ONNX models
-RUN python /app/scripts/download_models.py
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/temp /tmp/trt_cache
