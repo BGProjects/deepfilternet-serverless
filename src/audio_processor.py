@@ -230,21 +230,32 @@ class DeepFilterNetProcessor:
                      audio: np.ndarray, 
                      orig_sample_rate: int,
                      target_sample_rate: int = 48000,
-                     attenuation_limit_db: Optional[float] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+                     attenuation_limit_db: Optional[float] = None,
+                     max_chunk_duration_s: float = 30.0) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
-        Enhance audio array
+        Enhance audio array with automatic chunking for large files
         
         Args:
             audio: Input audio array
             orig_sample_rate: Original sample rate
             target_sample_rate: Target sample rate for processing
             attenuation_limit_db: Optional noise attenuation limit
+            max_chunk_duration_s: Maximum chunk duration in seconds (default: 30s)
             
         Returns:
             Tuple of (enhanced_audio, metadata)
         """
         
         process_start = time.time()
+        
+        # Calculate audio duration
+        audio_duration_s = len(audio) / orig_sample_rate
+        
+        # If audio is too long, process in chunks
+        if audio_duration_s > max_chunk_duration_s:
+            logger.info(f"🔄 Audio duration {audio_duration_s:.1f}s > {max_chunk_duration_s}s, processing in chunks")
+            return self._enhance_audio_chunked(audio, orig_sample_rate, target_sample_rate, 
+                                             attenuation_limit_db, max_chunk_duration_s)
         
         # Convert to mono if stereo
         if audio.ndim > 1:
@@ -325,6 +336,120 @@ class DeepFilterNetProcessor:
         )
         
         return enhanced_audio.astype(np.float32)
+    
+    def _enhance_audio_chunked(self, 
+                              audio: np.ndarray, 
+                              orig_sample_rate: int,
+                              target_sample_rate: int,
+                              attenuation_limit_db: Optional[float],
+                              chunk_duration_s: float) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """
+        Process large audio files in chunks to avoid GPU memory overflow
+        """
+        
+        process_start = time.time()
+        
+        # Convert to mono if stereo
+        if audio.ndim > 1:
+            audio = np.mean(audio, axis=1)
+            logger.info("🔄 Converted stereo to mono")
+        
+        # Resample if needed
+        if orig_sample_rate != target_sample_rate:
+            resample_start = time.time()
+            new_length = int(len(audio) * target_sample_rate / orig_sample_rate)
+            audio = resample(audio, new_length)
+            resample_time = time.time() - resample_start
+            logger.info(f"🔄 Resampled: {orig_sample_rate}Hz → {target_sample_rate}Hz ({resample_time:.2f}s)")
+        else:
+            resample_time = 0
+        
+        # Calculate chunk parameters
+        samples_per_chunk = int(chunk_duration_s * target_sample_rate)
+        overlap_samples = int(0.5 * target_sample_rate)  # 0.5s overlap
+        num_chunks = max(1, int(np.ceil((len(audio) - overlap_samples) / (samples_per_chunk - overlap_samples))))
+        
+        logger.info(f"📊 Processing {len(audio)} samples in {num_chunks} chunks of {chunk_duration_s}s each")
+        
+        enhanced_chunks = []
+        total_inference_time = 0
+        total_feature_time = 0
+        total_reconstruct_time = 0
+        
+        for i in range(num_chunks):
+            chunk_start = i * (samples_per_chunk - overlap_samples)
+            chunk_end = min(chunk_start + samples_per_chunk, len(audio))
+            
+            chunk_audio = audio[chunk_start:chunk_end]
+            logger.info(f"🔄 Processing chunk {i+1}/{num_chunks}: {len(chunk_audio)} samples")
+            
+            # Extract features for this chunk
+            feature_start = time.time()
+            features = self.feature_extractor.extract_features(chunk_audio)
+            feature_time = time.time() - feature_start
+            total_feature_time += feature_time
+            
+            # Run ONNX inference
+            inference_start = time.time()
+            inference_results = self.inference_engine.run_inference(features)
+            inference_time = time.time() - inference_start
+            total_inference_time += inference_time
+            
+            # Reconstruct enhanced audio
+            reconstruct_start = time.time()
+            enhanced_chunk = self._reconstruct_audio(
+                features, 
+                inference_results, 
+                attenuation_limit_db=attenuation_limit_db
+            )
+            reconstruct_time = time.time() - reconstruct_start
+            total_reconstruct_time += reconstruct_time
+            
+            # Handle overlap if not first chunk
+            if i > 0 and len(enhanced_chunks) > 0:
+                # Crossfade overlap region
+                overlap_start = overlap_samples // 2
+                overlap_end = overlap_samples
+                
+                # Apply crossfade to avoid discontinuities
+                fade_in = np.linspace(0, 1, overlap_end - overlap_start)
+                fade_out = np.linspace(1, 0, overlap_end - overlap_start)
+                
+                if len(enhanced_chunk) > overlap_end - overlap_start:
+                    enhanced_chunk[overlap_start:overlap_end] = (
+                        enhanced_chunk[overlap_start:overlap_end] * fade_in +
+                        enhanced_chunks[-1][-len(fade_out):] * fade_out
+                    )
+                    # Remove overlapped part from previous chunk
+                    enhanced_chunks[-1] = enhanced_chunks[-1][:-len(fade_out)]
+            
+            enhanced_chunks.append(enhanced_chunk)
+        
+        # Concatenate all chunks
+        enhanced_audio = np.concatenate(enhanced_chunks)
+        
+        process_end = time.time()
+        total_time = process_end - process_start
+        
+        # Prepare metadata
+        metadata = {
+            'sample_rate': target_sample_rate,
+            'processing_time_s': round(total_time, 3),
+            'rtf': round(total_time / (len(enhanced_audio) / target_sample_rate), 4),
+            'feature_extraction_ms': round(total_feature_time * 1000, 2),
+            'inference_time_ms': round(total_inference_time * 1000, 2),
+            'reconstruction_ms': round(total_reconstruct_time * 1000, 2),
+            'resample_time_ms': round(resample_time * 1000, 2),
+            'input_samples': len(audio),
+            'output_samples': len(enhanced_audio),
+            'num_chunks': num_chunks,
+            'chunk_duration_s': chunk_duration_s,
+            'chunked_processing': True
+        }
+        
+        logger.info(f"🎯 Chunked enhancement complete: {num_chunks} chunks, RTF={metadata['rtf']:.3f}")
+        
+        return enhanced_audio, metadata
     
     def _apply_enhancement_mask(self, 
                                spec: np.ndarray, 
