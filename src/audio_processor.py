@@ -462,17 +462,24 @@ class DeepFilterNetProcessor:
         
         # Interpolate mask to match spectrum dimensions if needed
         if mask.shape != spec.shape:
-            from scipy.interpolate import interp2d
+            from scipy.interpolate import RegularGridInterpolator
             
-            # Create interpolation function
+            # Create interpolation function using RegularGridInterpolator
             x_orig = np.linspace(0, 1, mask.shape[1])
             y_orig = np.linspace(0, 1, mask.shape[0])
             
             x_new = np.linspace(0, 1, spec.shape[1])
             y_new = np.linspace(0, 1, spec.shape[0])
             
-            interp_func = interp2d(x_orig, y_orig, mask, kind='linear')
-            mask = interp_func(x_new, y_new)
+            # RegularGridInterpolator expects points as (y, x) for 2D data
+            interp_func = RegularGridInterpolator((y_orig, x_orig), mask, method='linear', bounds_error=False, fill_value=0)
+            
+            # Create meshgrid for new coordinates
+            y_mesh, x_mesh = np.meshgrid(y_new, x_new, indexing='ij')
+            points = np.stack([y_mesh.ravel(), x_mesh.ravel()], axis=1)
+            
+            # Interpolate and reshape to target shape
+            mask = interp_func(points).reshape(spec.shape)
         
         # Apply mask to spectrum
         enhanced_spec = spec * mask.astype(np.complex64)

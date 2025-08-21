@@ -114,6 +114,9 @@ class ONNXInferenceEngine:
                         'arena_extend_strategy': 'kSameAsRequested',  # More aggressive for large VRAM
                         'cudnn_conv1d_pad_to_nc1d': True,  # Audio processing optimization
                         'enable_cuda_graph': False,  # Disabled for compatibility
+                        'gpu_external_alloc': 1,  # Use external CUDA memory allocator
+                        'gpu_external_free': 1,   # Enable external memory freeing
+                        'arena_extend_strategy': 'kNextPowerOfTwo',  # Better for fragmentation
                     })
                 
                 providers.append(('CUDAExecutionProvider', cuda_options))
