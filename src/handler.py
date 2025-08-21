@@ -413,6 +413,14 @@ def handler(job: Dict[str, Any]) -> Dict[str, Any]:
         # Reset error count on success
         ERROR_COUNT = 0
         
+        # RunPod worker refresh mechanism (optional)
+        # Check if worker refresh is requested by user or needed due to memory issues
+        should_refresh = job_input.get('refresh_worker', False) or (torch.cuda.is_available() and torch.cuda.memory_allocated() > 0.8 * torch.cuda.get_device_properties(0).total_memory)
+        
+        if should_refresh:
+            logger.info("🔄 Worker refresh requested - will restart after this job")
+            response['refresh_worker'] = True
+        
         return response
         
     except Exception as handler_error:
@@ -421,11 +429,19 @@ def handler(job: Dict[str, Any]) -> Dict[str, Any]:
         
         ERROR_COUNT += 1
         
-        return handle_error(
+        # RunPod worker refresh on critical errors (prevent infinite crash loop)
+        error_response = handle_error(
             f"Handler critical error: {handler_error}",
             "HANDLER_ERROR",
             job_id
         )
+        
+        # Force worker refresh if too many errors or segfault detected
+        if ERROR_COUNT >= MAX_ERRORS or "SIGSEGV" in str(handler_error) or "segmentation fault" in str(handler_error).lower():
+            logger.error(f"🚨 CRITICAL: Forcing worker refresh due to error count ({ERROR_COUNT}) or segfault")
+            error_response['refresh_worker'] = True
+        
+        return error_response
 
 
 def main():

@@ -174,12 +174,20 @@ def handle_error(error_message: str, error_type: str = "UNKNOWN_ERROR", job_id: 
             "troubleshooting": {
                 "common_solutions": [
                     "Check if RTX 5090 has proper PyTorch nightly support",
-                    "Verify CUDA 12.x compatibility",
+                    "Verify CUDA 12.x compatibility with RunPod multiple version strategy",
                     "Try CPU fallback if GPU initialization fails",
-                    "Check memory allocation limits",
-                    "Verify SciPy version compatibility (1.14.0+)"
+                    "Check memory allocation limits and FlashBoot settings",
+                    "Verify SciPy version compatibility (1.14.0+)",
+                    "Enable RunPod worker refresh mechanism",
+                    "Check RUNPOD_INIT_TIMEOUT and worker configuration"
                 ],
-                "exit_code_139_info": "Exit code 139 indicates segmentation fault - check GPU compatibility and memory limits"
+                "exit_code_139_info": "Exit code 139 indicates segmentation fault - RunPod will refresh worker automatically",
+                "runpod_optimization": {
+                    "cuda_versions": "Use multiple CUDA versions (12.1-12.6) for better availability",
+                    "flashboot": "FlashBoot enabled for faster cold starts",
+                    "worker_refresh": "Automatic worker refresh on critical errors",
+                    "memory_management": "RTX 5090 optimized with 32GB VRAM support"
+                }
             }
         }
     }

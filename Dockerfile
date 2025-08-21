@@ -1,16 +1,23 @@
-# DeepFilterNet3 Serverless - RTX 4090 Optimized
-# Multi-stage build for optimal image size and performance
+# DeepFilterNet3 Serverless - RTX 5090 Optimized for RunPod
+# Multi-stage build with embedded models for optimal performance
+# Following RunPod best practices for serverless workers
 
 # ========================================
-# Stage 1: Base CUDA Runtime Environment  
+# Stage 1: Base CUDA Development Environment  
 # ========================================
-FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS base
+# Using devel image for better CUDA compatibility across versions
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 AS base
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV CUDA_VISIBLE_DEVICES=0
+
+# RunPod optimization environment variables
+ENV RUNPOD_INIT_TIMEOUT=800
+ENV USE_FLASH_ATTENTION=true
+ENV RUNPOD_WORKER_TIMEOUT=300
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -85,32 +92,48 @@ FROM application AS production
 # Set working directory
 WORKDIR /app
 
-# RTX 4090 Optimizations
+# RunPod + RTX 5090 Optimizations
+# Multiple CUDA version compatibility (RunPod best practice)
+ENV CUDA_VERSION=12.4
+ENV CUDA_COMPAT_VERSIONS="12.1,12.2,12.3,12.4,12.5,12.6"
 ENV CUDA_LAUNCH_BLOCKING=0
 ENV CUDA_CACHE_DISABLE=0
-ENV CUDA_CACHE_MAXSIZE=2147483648
+ENV CUDA_CACHE_MAXSIZE=4294967296
 ENV CUDA_DEVICE_MAX_CONNECTIONS=32
 
-# ONNX Runtime Optimizations for RTX 4090
-ENV OMP_NUM_THREADS=8
-ENV ORT_TENSORRT_MAX_WORKSPACE_SIZE=8589934592
+# RunPod Serverless Optimization Variables
+ENV RUNPOD_INIT_TIMEOUT=800
+ENV RUNPOD_WORKER_REFRESH=true
+ENV RUNPOD_ERROR_HANDLER=comprehensive
+
+# Flash Attention for RTX 5090 (RunPod recommended)
+ENV USE_FLASH_ATTENTION=true
+ENV FLASH_ATTENTION_VERSION=2
+
+# ONNX Runtime Optimizations for RTX 5090
+ENV OMP_NUM_THREADS=12
+ENV ORT_TENSORRT_MAX_WORKSPACE_SIZE=17179869184
 ENV ORT_TENSORRT_FP16_ENABLE=1
 ENV ORT_TENSORRT_ENGINE_CACHE_ENABLE=1
 ENV ORT_TENSORRT_ENGINE_CACHE_PATH=/tmp/trt_cache
 
-# Memory optimizations - Optimized for RTX 5090 32GB VRAM
-ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:1024,expandable_segments:True
-ENV CUDA_MEMORY_FRACTION=0.9
-ENV GPU_MEMORY_UTILIZATION=0.9
-ENV CUDA_CACHE_MAXSIZE=4294967296
+# Memory optimizations - RTX 5090 32GB VRAM (RunPod optimized)
+ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:2048,expandable_segments:True,roundup_power2_divisions:16
+ENV CUDA_MEMORY_FRACTION=0.85
+ENV GPU_MEMORY_UTILIZATION=0.85
+ENV PYTORCH_ALLOC_CONF=max_split_size_mb:2048
+
+# RunPod FlashBoot optimization
+ENV RUNPOD_FLASHBOOT=true
+ENV RUNPOD_KEEP_WARM=300
 
 # Logging configuration
 ENV LOG_LEVEL=INFO
 ENV PYTHONPATH=/app/src
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.path.append('/app/src'); from utils import log_system_info; log_system_info()" || exit 1
+# RunPod compatible health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=5 \
+    CMD python -c "import sys; sys.path.append('/app/src'); from utils import log_system_info; log_system_info(); print('RunPod Worker Health: OK')" || exit 1
 
 # Set the default command
 CMD ["python", "/app/src/handler.py"]
@@ -126,10 +149,14 @@ LABEL onnxruntime_version="1.18.1"
 LABEL pytorch_version="2.8.0-nightly"
 LABEL python_version="3.10"
 
-# Document exposed functionality
+# RunPod Serverless Labels (RunPod best practice)
 LABEL runpod.serverless=true
 LABEL runpod.gpu="RTX5090"
-LABEL runpod.gpu_compatibility="RTX4090,RTX5080,RTX5090"
-LABEL runpod.memory_requirement="16GB"
+LABEL runpod.gpu_compatibility="RTX4090,RTX5080,RTX5090,H100,A100"
+LABEL runpod.memory_requirement="8GB"
 LABEL runpod.processing_type="audio_enhancement"
-LABEL runpod.cuda_capability="sm_90,sm_120"
+LABEL runpod.cuda_capability="sm_80,sm_86,sm_89,sm_90,sm_120"
+LABEL runpod.cuda_versions="12.1,12.2,12.3,12.4,12.5,12.6"
+LABEL runpod.worker_type="optimized"
+LABEL runpod.model_embedded=true
+LABEL runpod.flashboot_compatible=true

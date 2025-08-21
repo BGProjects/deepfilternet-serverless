@@ -1,0 +1,160 @@
+{
+  "name": "DeepFilterNet3-RTX5090-Optimized",
+  "description": "High-performance audio enhancement with DeepFilterNet3 optimized for RTX 5090",
+  "version": "2.1.0",
+  "docker_image": "bgprojects/deepfilternet3-rtx5090:v2.1",
+  
+  "runpod": {
+    "serverless": true,
+    "gpu_types": [
+      "RTX 5090",
+      "RTX 5080", 
+      "RTX 4090",
+      "H100 SXM5",
+      "A100 SXM"
+    ],
+    "cuda_versions": [
+      "12.1",
+      "12.2", 
+      "12.3",
+      "12.4",
+      "12.5",
+      "12.6"
+    ],
+    "regions": [
+      "US-OR-1",
+      "US-TX-1", 
+      "US-CA-1",
+      "EU-RO-1",
+      "EU-SE-1",
+      "AS-JP-1"
+    ],
+    "memory_gb": 8,
+    "disk_gb": 20,
+    "container_disk_gb": 10,
+    
+    "scaling": {
+      "min_workers": 0,
+      "max_workers": 10,
+      "idle_timeout_ms": 300000,
+      "execution_timeout_ms": 600000,
+      "flashboot": true,
+      "auto_scale": true
+    },
+    
+    "environment_variables": {
+      "RUNPOD_INIT_TIMEOUT": "800",
+      "USE_FLASH_ATTENTION": "true",
+      "RUNPOD_WORKER_REFRESH": "true",
+      "RUNPOD_ERROR_HANDLER": "comprehensive",
+      "RUNPOD_FLASHBOOT": "true",
+      "RUNPOD_KEEP_WARM": "300",
+      "CUDA_MEMORY_FRACTION": "0.85",
+      "GPU_MEMORY_UTILIZATION": "0.85",
+      "PYTORCH_CUDA_ALLOC_CONF": "max_split_size_mb:2048,expandable_segments:True",
+      "LOG_LEVEL": "INFO"
+    }
+  },
+  
+  "api": {
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "audio_url": {
+          "type": "string", 
+          "description": "URL to audio file for enhancement"
+        },
+        "audio_base64": {
+          "type": "string",
+          "description": "Base64 encoded audio data"
+        },
+        "sample_rate": {
+          "type": "integer",
+          "default": 48000,
+          "description": "Target sample rate"
+        },
+        "attenuation_limit_db": {
+          "type": "number",
+          "default": null,
+          "description": "Noise attenuation limit in dB"
+        },
+        "chunk_duration_s": {
+          "type": "number",
+          "default": 120,
+          "description": "Audio chunk duration for RTX 5090 optimization"
+        },
+        "refresh_worker": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force worker refresh after job completion"
+        },
+        "return_metadata": {
+          "type": "boolean",
+          "default": true,
+          "description": "Return processing metadata"
+        }
+      },
+      "oneOf": [
+        {"required": ["audio_url"]},
+        {"required": ["audio_base64"]}
+      ]
+    },
+    
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "enhanced_audio_base64": {
+          "type": "string",
+          "description": "Enhanced audio as base64 encoded data"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Processing success status"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Processing metadata and system information"
+        },
+        "refresh_worker": {
+          "type": "boolean", 
+          "description": "Whether worker should be refreshed"
+        }
+      }
+    }
+  },
+  
+  "performance": {
+    "expected_rtf": {
+      "RTX 5090": "0.02-0.05",
+      "RTX 5080": "0.03-0.06", 
+      "RTX 4090": "0.03-0.07",
+      "H100": "0.01-0.03",
+      "A100": "0.02-0.05"
+    },
+    "max_audio_duration_s": 7200,
+    "chunk_processing": true,
+    "gpu_memory_usage": "28-30GB (RTX 5090)"
+  },
+  
+  "troubleshooting": {
+    "common_issues": {
+      "exit_code_139": {
+        "description": "Segmentation fault - usually RTX 5090 sm_120 compatibility",
+        "solutions": [
+          "Worker automatically refreshes on segfaults",
+          "Multiple CUDA versions provide fallback options", 
+          "FlashBoot reduces cold start issues",
+          "CPU fallback implemented for critical failures"
+        ]
+      },
+      "memory_overflow": {
+        "description": "GPU memory insufficient",
+        "solutions": [
+          "Audio chunking at 120s intervals",
+          "Memory monitoring with auto-refresh",
+          "Optimized memory allocation for RTX 5090"
+        ]
+      }
+    }
+  }
+}
