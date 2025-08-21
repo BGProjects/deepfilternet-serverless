@@ -91,11 +91,27 @@ class ONNXInferenceEngine:
                     'do_copy_in_default_stream': True,
                 }
                 
-                # RTX 4090 specific optimizations
+                # RTX 5090/4090 specific optimizations
                 if self.optimize_for_rtx4090:
+                    # Detect GPU type and set appropriate memory limits
+                    import torch
+                    if torch.cuda.is_available():
+                        gpu_name = torch.cuda.get_device_name()
+                        if "RTX 5090" in gpu_name:
+                            gpu_mem_limit = 28 * 1024 * 1024 * 1024  # 28GB for RTX 5090
+                            logger.info("🎮 RTX 5090 detected - Using 28GB GPU memory limit")
+                        elif "RTX 5080" in gpu_name:
+                            gpu_mem_limit = 14 * 1024 * 1024 * 1024  # 14GB for RTX 5080  
+                            logger.info("🎮 RTX 5080 detected - Using 14GB GPU memory limit")
+                        else:
+                            gpu_mem_limit = 20 * 1024 * 1024 * 1024  # 20GB for RTX 4090 and others
+                            logger.info(f"🎮 {gpu_name} detected - Using 20GB GPU memory limit")
+                    else:
+                        gpu_mem_limit = 16 * 1024 * 1024 * 1024  # Default fallback
+                    
                     cuda_options.update({
-                        'gpu_mem_limit': 16 * 1024 * 1024 * 1024,  # Reduced to 16GB for stability
-                        'arena_extend_strategy': 'kNextPowerOfTwo',  # More conservative
+                        'gpu_mem_limit': gpu_mem_limit,
+                        'arena_extend_strategy': 'kSameAsRequested',  # More aggressive for large VRAM
                         'cudnn_conv1d_pad_to_nc1d': True,  # Audio processing optimization
                         'enable_cuda_graph': False,  # Disabled for compatibility
                     })

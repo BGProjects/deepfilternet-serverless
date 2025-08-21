@@ -231,7 +231,7 @@ class DeepFilterNetProcessor:
                      orig_sample_rate: int,
                      target_sample_rate: int = 48000,
                      attenuation_limit_db: Optional[float] = None,
-                     max_chunk_duration_s: float = 30.0) -> Tuple[np.ndarray, Dict[str, Any]]:
+                     max_chunk_duration_s: float = 120.0) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Enhance audio array with automatic chunking for large files
         
@@ -240,7 +240,7 @@ class DeepFilterNetProcessor:
             orig_sample_rate: Original sample rate
             target_sample_rate: Target sample rate for processing
             attenuation_limit_db: Optional noise attenuation limit
-            max_chunk_duration_s: Maximum chunk duration in seconds (default: 30s)
+            max_chunk_duration_s: Maximum chunk duration in seconds (default: 120s for RTX 5090)
             
         Returns:
             Tuple of (enhanced_audio, metadata)
