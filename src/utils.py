@@ -106,18 +106,60 @@ def validate_input(job_input: Dict[str, Any]) -> Optional[str]:
     return None  # Valid input
 
 
-def handle_error(error_message: str) -> Dict[str, Any]:
+def handle_error(error_message: str, error_type: str = "UNKNOWN_ERROR", job_id: str = "unknown") -> Dict[str, Any]:
     """
-    Create standardized error response
+    Create comprehensive standardized error response with detailed logging
     
     Args:
         error_message: Error description
+        error_type: Type/category of error
+        job_id: Job ID for tracking
         
     Returns:
         Error response dictionary
     """
+    import time
+    import platform
+    import traceback
     
-    logger.error(f"❌ {error_message}")
+    logger.error(f"❌ [{error_type}] Job {job_id}: {error_message}")
+    
+    # Get current system state for debugging
+    error_context = {
+        "timestamp": time.time(),
+        "error_type": error_type,
+        "job_id": job_id,
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+    }
+    
+    # Add PyTorch/CUDA info if available
+    try:
+        import torch
+        error_context.update({
+            "pytorch_version": torch.__version__,
+            "cuda_available": torch.cuda.is_available(),
+        })
+        
+        if torch.cuda.is_available():
+            error_context.update({
+                "gpu_name": torch.cuda.get_device_name(),
+                "cuda_memory_allocated": torch.cuda.memory_allocated(),
+                "cuda_memory_total": torch.cuda.get_device_properties(0).total_memory,
+            })
+    except Exception:
+        pass  # Don't let context collection fail the error response
+    
+    # Add ONNX Runtime info if available  
+    try:
+        import onnxruntime as ort
+        error_context["onnxruntime_version"] = ort.__version__
+        error_context["onnx_providers"] = ort.get_available_providers()
+    except Exception:
+        pass
+    
+    # Log comprehensive error context for RunPod visibility
+    logger.error(f"🔍 Error Context: {error_context}")
     
     return {
         "error": error_message,
@@ -125,7 +167,20 @@ def handle_error(error_message: str) -> Dict[str, Any]:
         "enhanced_audio_base64": None,
         "metadata": {
             "error": True,
-            "error_message": error_message
+            "error_message": error_message,
+            "error_type": error_type,
+            "job_id": job_id,
+            "error_context": error_context,
+            "troubleshooting": {
+                "common_solutions": [
+                    "Check if RTX 5090 has proper PyTorch nightly support",
+                    "Verify CUDA 12.x compatibility",
+                    "Try CPU fallback if GPU initialization fails",
+                    "Check memory allocation limits",
+                    "Verify SciPy version compatibility (1.14.0+)"
+                ],
+                "exit_code_139_info": "Exit code 139 indicates segmentation fault - check GPU compatibility and memory limits"
+            }
         }
     }
 

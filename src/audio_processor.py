@@ -181,7 +181,8 @@ class DeepFilterNetProcessor:
                           input_path: str, 
                           output_path: Optional[str] = None,
                           sample_rate: Optional[int] = None,
-                          attenuation_limit_db: Optional[float] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+                          attenuation_limit_db: Optional[float] = None,
+                          chunk_duration_s: Optional[float] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Enhance audio from file
         
@@ -208,7 +209,8 @@ class DeepFilterNetProcessor:
             audio=audio,
             orig_sample_rate=orig_sr,
             target_sample_rate=sample_rate or self.config.sr,
-            attenuation_limit_db=attenuation_limit_db
+            attenuation_limit_db=attenuation_limit_db,
+            chunk_duration_s=chunk_duration_s
         )
         
         # Add file metadata
