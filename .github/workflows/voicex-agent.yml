@@ -1,0 +1,53 @@
+# TurboMRR code agent (Phase 3.3). TurboMRR added this file with a setup PR.
+# The job runs on YOUR Actions minutes with YOUR ANTHROPIC_API_KEY repo secret; the key never reaches TurboMRR.
+# When a finding is approved in TurboMRR, it starts this workflow via workflow_dispatch; Claude opens a pull request.
+# Merging is always your decision. Add your test command to allowedTools if needed.
+name: TurboMRR agent
+run-name: "TurboMRR agent · ${{ inputs.finding_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      finding_id:
+        description: TurboMRR finding id
+        required: true
+        type: string
+      prompt:
+        description: What should change
+        required: true
+        type: string
+      model:
+        description: Claude model (optional)
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: voicex-agent-${{ inputs.finding_id }}
+  cancel-in-progress: false
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            ${{ inputs.prompt }}
+
+            When you are done, open a pull request against the default branch with `gh pr create`.
+            End the pull request body with this exact line: voicex-finding: ${{ inputs.finding_id }}
+          claude_args: |
+            --max-turns 40
+            ${{ inputs.model != '' && format('--model {0}', inputs.model) || '' }}
+            --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh pr create:*)"
