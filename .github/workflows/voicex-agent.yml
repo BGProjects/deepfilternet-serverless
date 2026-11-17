@@ -26,6 +26,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  id-token: write   # claude-code-action exchanges a GitHub OIDC token for the Claude GitHub App token
 
 concurrency:
   group: voicex-agent-${{ inputs.finding_id }}
